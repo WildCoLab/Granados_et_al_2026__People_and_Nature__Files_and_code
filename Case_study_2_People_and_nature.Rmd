@@ -1,0 +1,360 @@
+---
+title: "Case_study_1"
+author: "Chris B"
+date: "05/05/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(googlesheets4)
+library(googledrive)
+library(terra)
+library(raster)
+library(dplyr)
+library(brms)
+library(lubridate)
+library(lme4)
+library(sf)
+library(stars)
+library(corrplot)
+
+```
+
+
+## Figure 2
+```{r}
+
+dir.create("data_People_and_nature/raster")
+
+#Count summaries
+absolute_summary <- read.csv("data_People_and_nature/CS2_Overall_use.csv", header=T)
+
+# camera data
+cath_ras_trail <- raster("data_People_and_nature/raster/cath_cam.tif")
+gari_ras_trail <- raster("data_People_and_nature/raster/gari_cam.tif")
+ge_ras_trail   <- raster("data_People_and_nature/raster/ge_cam.tif")
+joff_ras_trail <- raster("data_People_and_nature/raster/joff_cam.tif") 
+
+# All trails data
+joff_allTrail <- raster("data_People_and_nature/raster/joff_AllTrails.tif")
+cath_allTrail <- raster("data_People_and_nature/raster/cath_allTrails.tif")
+gari_allTrail <- raster("data_People_and_nature/raster/gari_allTrails.tif")
+ge_allTrail   <- raster("data_People_and_nature/raster/ge_allTrails.tif")
+
+# Strava data
+joff_strava <- raster("data_People_and_nature/raster/joff_Strava.tif" )
+cath_strava <- raster("data_People_and_nature/raster/cath_Strava.tif" )
+gari_strava <- raster("data_People_and_nature/raster/gari_Strava.tif" )
+ge_strava   <- raster("data_People_and_nature/raster/ge_Strava.tif" )
+
+# Park boundaries
+focal_shp <- st_read("data_People_and_nature/shp/focal_parks.shp" )
+blup_sf <- st_read("data_People_and_nature/shp/blups_all_sites.shp")
+
+colnames(blup_sf) <- c("id","Station_effect","Deployment.Location.ID","Project.ID","Project_effect","Merged_effect","X","Y","blup_observation","geometry")
+
+pdf(height=10, width=14, "plots/Case_study_2.pdf")
+
+layout(matrix(c(1,2,3,4,5,6,
+                7,8,9,10,11,12,
+                13,14,15,16,17,18,
+                19,20,21,22,23,24), nrow=4, byrow = TRUE))
+
+
+par(mar=c(2,5,2,1))
+tmp <- barplot(absolute_summary$count_per_km[absolute_summary$Method=="Cameras"], names.arg=c("G", "J", "GE", "C"),
+        las=1, ylab="Average human use intensity", main="Overall", yaxs = "i", ylim=c(0, extendrange(absolute_summary$count_per_km[absolute_summary$Method=="Cameras"])[2]))
+axis(1, at=tmp, labels=rep("", times=4))
+box()
+
+
+par(mar=c(2,2,2,0))
+
+# Find the min,  Find the max using summary
+#ras_lims <- c(0, 27)
+# Different palette
+ramp  <-
+  colorRampPalette(c("#2b83ba", "#abdda4", "#ffffbf", "#fdae61", "#d7191c"))
+
+# CAMERA DATA
+plot(gari_ras_trail, col=ramp(255), main="Garibaldi (G)",
+     xaxt="n", yaxt="n", legend=F)
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(492000, 496500))
+axis(2, at=c(5531000, 5535000))
+plot(gari_ras_trail, col=ramp(255), add=T,  legend=F)
+
+
+plot(joff_ras_trail, col=ramp(255), main="Joffre (J)",
+     xaxt="n", yaxt="n", legend=F)
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+plot(joff_ras_trail, col=ramp(255), add=T, legend=F)
+axis(1, at=c(535000, 538000))
+axis(2, at=c(5575000, 5580000))
+
+
+plot(ge_ras_trail, col=ramp(255), main="Golden Ears (GE)",
+     xaxt="n", yaxt="n", legend=F)
+#plot(gari_ras_trail, col=ramp(255), add=T, legend=F)
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05), legend=F)
+axis(1, at=c(532000, 540000))
+axis(2, at=c(5457000, 5471000))
+#axis(2)
+
+plot(cath_ras_trail, col=ramp(255), main="Cathedral (C)",
+     xaxt="n", yaxt="n", legend=F)
+#plot(gari_ras_trail, col=ramp(255), add=T,  legend=F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(699000, 715000))
+axis(2, at=c(5431000, 5450000))
+#axis(2)
+
+
+par(mar=c(2,2,2,1))
+# A dd your own palette
+plot(c(0,8), c(0,26), type="n", ylab="", xlab="", axes=F)
+# plot the arrow, without a fill
+polygon(c(0,1,1,0), y = c(0,0,26,26))
+# create gradient colors
+nslices = 100
+cols <- ramp(nslices)
+# split the base of the arrow in nslices and fill each progressively
+ys <- seq(0,26, len = nslices + 1)
+for (i in 1:nslices) {
+  polygon(c(0,0,1,1), c(ys[i], ys[i+1], ys[i+1], ys[i]), col = cols[i], border = NA)
+}
+lines(c(1,1.5), c(0,0))
+lines(c(1,1.5), c(13,13))
+lines(c(1,1.5), c(26,26))
+text(1.5,0, "Low", pos=4)
+text(1.5,13, "Average", pos=4)
+text(1.5,26, "High", pos=4)
+
+par(mar=c(2,2,2,0))
+
+# ALLTRAILS DATA
+par(mar=c(2,5,2,1))
+tmp <- barplot(absolute_summary$count_per_km[absolute_summary$Method=="AllTrails"], names.arg=c("G", "J", "GE", "C"),
+        las=1, ylab="Average human use intensity", main="", yaxs = "i", ylim=c(0, extendrange(absolute_summary$count_per_km[absolute_summary$Method=="AllTrails"])[2]))
+axis(1, at=tmp, labels=rep("", times=4))
+box()
+
+par(mar=c(2,2,2,0), xpd=FALSE)
+ras_lims <- c(0, 4217)
+
+plot(gari_allTrail, col=ramp(255),
+     xaxt="n", yaxt="n", legend=F)
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+
+axis(1, at=c(492000, 496500))
+axis(2, at=c(5531000, 5535000))
+
+plot(joff_allTrail, col=ramp(255),
+     xaxt="n", yaxt="n", legend=F)
+plot(joff_ras_trail, col=first(ramp(255)), add=T, legend=F)
+plot(joff_allTrail, col=ramp(255), add=T, legend=F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(535000, 538000))
+axis(2, at=c(5575000, 5580000))
+
+
+plot(ge_allTrail, col=ramp(255), 
+     xaxt="n", yaxt="n", legend=F)
+plot(ge_ras_trail, col=first(ramp(255)), add=T, legend=F)
+plot(ge_allTrail, col=ramp(255), add=T, legend=F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(532000, 540000))
+axis(2, at=c(5457000, 5471000))
+
+
+plot(cath_allTrail, col=ramp(255), 
+     xaxt="n", yaxt="n", legend=F)
+plot(cath_ras_trail, col=first(ramp(255)), add=T, legend=F)
+plot(cath_allTrail, col=ramp(255), add=T, legend=F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(699000, 715000))
+axis(2, at=c(5431000, 5450000))
+
+par(mar=c(2,2,2,1))
+plot(c(0,8), c(0,25), type="n", ylab="", xlab="", axes=F)
+
+par(mar=c(2,2,2,0))
+
+# STRAVA Data
+par(mar=c(2,5,2,1))
+tmp <- barplot(absolute_summary$count_per_km[absolute_summary$Method=="Strava"], names.arg=c("G", "J", "GE", "C"),
+        las=1, ylab="Average human use intensity", main="", yaxs = "i", ylim=c(0, extendrange(absolute_summary$count_per_km[absolute_summary$Method=="Strava"])[2]))
+axis(1, at=tmp, labels=rep("", times=4))
+box()
+
+par(mar=c(2,2,2,0))
+ras_lims <- c(0, 19232)
+
+plot(gari_strava, col=ramp(255), 
+     xaxt="n", yaxt="n", legend=F)
+plot(gari_ras_trail, col=first(ramp(255)), add=T, legend=F)
+plot(gari_strava, col=ramp(255), add=T, legend =F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(492000, 496500))
+axis(2, at=c(5531000, 5535000))
+
+
+par(bg="white")
+plot(joff_strava, col=ramp(255), 
+     xaxt="n", yaxt="n", legend=F)
+plot(joff_ras_trail, col=first(ramp(255)), add=T, legend=F)
+plot(joff_strava, col=ramp(255), add=T, legend=F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(535000, 538000))
+axis(2, at=c(5575000, 5580000))
+
+
+
+plot(ge_strava, col=ramp(255),  
+     xaxt="n", yaxt="n", legend=F)
+plot(ge_ras_trail, col=first(ramp(255)), add=T, legend=F)
+plot(ge_strava, col=ramp(255), add=T, legend=F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(532000, 540000))
+axis(2, at=c(5457000, 5471000))
+
+plot(cath_strava, col=ramp(255), 
+     xaxt="n", yaxt="n", legend=F)
+plot(cath_ras_trail, col=first(ramp(255)), add=T, legend=F)
+plot(cath_strava, col=ramp(255), add=T, legend=F)
+
+plot(st_geometry(focal_shp), add=T, border=NA, col=rgb(0,0,0,0.05))
+axis(1, at=c(699000, 715000))
+axis(2, at=c(5431000, 5450000))
+
+par(mar=c(2,2,2,1))
+plot(c(0,8), c(0,26), type="n", ylab="", xlab="", axes=F)
+
+par(mar=c(2,2,2,0))
+######################################################
+# EXTRACT LOCATION SPECIFIC VALUES
+
+# Absolute values
+tmp <- matrix(c(absolute_summary$count_per_km[absolute_summary$Method=="Cameras"],
+       absolute_summary$count_per_km[absolute_summary$Method=="AllTrails"],
+       absolute_summary$count_per_km[absolute_summary$Method=="Strava"]), byrow = F, nrow=4)
+       
+colnames(tmp) <- c("Cameras", "AllTrails", "Strava")
+M = cor(tmp, method="spearman")
+
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 0, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+
+par(mar=c(5,4,1,1))
+
+# JOFF
+joff_sf <- blup_sf[blup_sf$Project.ID=="JOFF",]
+joff_sf$allTrail <- as.numeric(extract(joff_allTrail, st_buffer(joff_sf,100), fun=max, na.rm=T))
+joff_sf$allTrail[is.na(joff_sf$allTrail)==T] <- 0
+
+joff_sf$strava <- as.numeric(extract(joff_strava, st_buffer(joff_sf,100), fun=max, na.rm=T))
+joff_sf$strava[is.na(joff_sf$strava)==T] <- 0
+joff_sf$strava[joff_sf$strava<0] <- 0
+
+
+tmp <- joff_sf
+tmp$geometry <- NULL
+tmp <- tmp[,c("blup_observation",  "allTrail","strava")]
+colnames(tmp) <- c("Cameras", "AllTrails", "Strava")
+M = cor(tmp, method="spearman")
+
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 0, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+
+
+# Gari
+gari_sf <- blup_sf[blup_sf$Project.ID=="GARI",]
+gari_sf$allTrail <- extract(gari_allTrail, st_buffer(gari_sf,100), fun=max, na.rm=T)
+gari_sf$allTrail[is.na(gari_sf$allTrail)==T] <- 0
+
+gari_sf$strava <- as.numeric(extract(gari_strava, st_buffer(gari_sf,100), fun=max, na.rm=T))
+gari_sf$strava[is.na(gari_sf$strava)==T] <- 0
+gari_sf$strava[gari_sf$strava<0] <- 0
+
+tmp <- gari_sf
+tmp$geometry <- NULL
+tmp <- tmp[,c("blup_observation",  "allTrail","strava")]
+colnames(tmp) <- c("Cameras", "AllTrails", "Strava")
+M = cor(tmp, method="spearman")
+
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 0, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+
+# GE
+ge_sf <- blup_sf[blup_sf$Project.ID=="GE",]
+ge_sf$allTrail <- as.numeric(extract(ge_allTrail, st_buffer(ge_sf,100), fun=max, na.rm=T))
+ge_sf$allTrail[is.na(ge_sf$allTrail)==T] <- 0
+ge_sf$allTrail[ge_sf$allTrail<0] <- 0
+
+ge_sf$strava <- as.numeric(extract(ge_strava, st_buffer(ge_sf,100), fun=max, na.rm=T))
+ge_sf$strava[is.na(ge_sf$strava)==T] <- 0
+ge_sf$strava[ge_sf$strava<0] <- 0
+
+tmp <- ge_sf
+tmp$geometry <- NULL
+tmp <- tmp[,c("blup_observation",  "allTrail","strava")]
+colnames(tmp) <- c("Cameras", "AllTrails", "Strava")
+M = cor(tmp, method="spearman")
+
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 0, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+# Cath
+cath_sf <- blup_sf[blup_sf$Project.ID=="CATH",]
+cath_sf$allTrail <- as.numeric(extract(cath_allTrail, st_buffer(cath_sf,100), fun=max, na.rm=T))
+cath_sf$allTrail[is.na(cath_sf$allTrail)==T] <- 0
+cath_sf$allTrail[cath_sf$allTrail<0] <- 0
+
+cath_sf$strava <- as.numeric(extract(cath_strava, st_buffer(cath_sf,100), fun=max, na.rm=T))
+cath_sf$strava[is.na(cath_sf$strava)==T] <- 0
+cath_sf$strava[cath_sf$strava<0] <- 0
+
+tmp <- cath_sf
+tmp$geometry <- NULL
+tmp <- tmp[,c("blup_observation",  "allTrail","strava")]
+colnames(tmp) <- c("Cameras", "AllTrails", "Strava")
+M = cor(tmp, method="spearman")
+
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 0, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+dev.off()
+
+```
+
+
+

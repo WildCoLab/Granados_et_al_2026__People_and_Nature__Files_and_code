@@ -1,0 +1,246 @@
+---
+title: "Case_study_1"
+author: "Chris B"
+date: "05/05/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(googlesheets4)
+library(googledrive)
+library(dplyr)
+library(corrplot)
+library(plotrix)
+library(lubridate)
+
+ramp  <-
+  colorRampPalette(c("#2b83ba", "#abdda4", "#ffffbf", "#fdae61", "#d7191c"))
+
+```
+
+# Joffre Case Study
+
+```{r}
+mon_all     <- read.csv("data_People_and_nature/CS1_monthly_data.csv", header=T)
+cams_day    <- read.csv("data_People_and_nature/CS1_cams_daily.csv", header=T)
+counter_day <- read.csv("data_People_and_nature/CS1_counter_daily.csv", header=T)
+day_pass    <- read.csv("data_People_and_nature/CS1_passes_daily.csv", header=T)
+all_hourly <- read.csv("data_People_and_nature/CS1_all_hourly.csv", header=T)
+
+
+counter_day$date <- ymd(counter_day$date)
+cams_day$date <- ymd(cams_day$date)
+day_pass$date <- ymd(day_pass$date)
+
+#Create the plot
+pdf(height=8, width=10, "plots/Case_study_1.pdf")
+
+par(mar=c(4,4,1,1))
+#par(mfrow=c(4,4))
+par(xpd=F)
+layout(
+  matrix(c(1,5,9,14,
+           2,6,10,15,
+           3,7,11,16,
+           4,8,12,13), ncol=4, byrow=TRUE))
+
+
+barpos <- barplot(mon_all$avg_daily_cam, las=2, main="", names.arg = mon_all$mon_year, ylim=c(0, extendrange(mon_all$avg_daily_count)[2]), ylab="Camera detections", xaxt="n")
+box()
+axis(1, at=barpos, labels=rep("", times=5))
+
+barplot(mon_all$avg_daily_count, las=2, main="", names.arg = mon_all$mon_year, ylim=c(0, extendrange(mon_all$avg_daily_count)[2]), ylab="Counter triggers", xaxt="n")
+box()
+axis(1, at=barpos, labels=rep("", times=5))
+
+barplot(mon_all$avg_daily_pass, las=2, main="", names.arg = mon_all$mon_year, ylim=c(0, extendrange(mon_all$avg_daily_count)[2]), ylab="Passes issued", xaxt="n")
+box()
+axis(1, at=barpos, labels=c("May","Jun", "Jul", "Aug", "Sep"))
+
+head(mon_all)
+mon_all$avg_daily_pass[1] <- 0
+tmp <- mon_all[,c(3,2,4)]
+
+colnames(tmp) <- c("Camera", "Counter", "Day pass")
+M = cor(tmp, method="spearman")
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 1, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+
+# Average daily patterns
+plot(counter_day$date, counter_day$count, las=1, type="n", xlab="", ylim=c(0, max(cams_day$count)), ylab="Camera detections", xaxt="n")
+for(i in 1:nrow(cams_day))
+{
+  lines(c(cams_day$date[i],cams_day$date[i]), c(0,cams_day$count[i]))
+}
+axis(1, at=c(1622530800, 1625122800, 1627801200, 1630479600, 1632978800), labels=rep("", times=5))
+
+# Counters 
+plot(counter_day$date, counter_day$count, las=1, type="n", xlab="", ylim=c(0, max(cams_day$count)), ylab="Counter triggers", xaxt="n")
+for(i in 1:nrow(counter_day))
+{
+  lines(c(counter_day$date[i],counter_day$date[i]), c(0,counter_day$count[i]))
+}
+axis(1, at=c(1622530800, 1625122800, 1627801200, 1630479600, 1632978800), labels=rep("", times=5))
+
+plot(counter_day$date, counter_day$count, las=1, type="n", xlab="Date", ylim=c(0, max(cams_day$count)), ylab="Passes issued")
+for(i in 1:nrow(day_pass))
+{
+  lines(c(day_pass$date[i],day_pass$date[i]), c(0,day_pass$nmbr_passes[i]))
+}
+abline(h=1053, lty=2, col="red")
+
+# Correlations
+tmp <- cams_day
+colnames(tmp) <- c("date"  ,   "camera" ,   "mon_year")
+tmp2 <- counter_day
+colnames(tmp2) <- c("date"  ,   "counter" ,   "mon_year")
+tmp3 <- day_pass
+tmp3 <- tmp3[,c("date", "nmbr_passes", "mon_year")]
+colnames(tmp3) <- c("date"  ,   "passes" ,   "mon_year")
+
+tmp_all <- left_join(tmp, tmp2)
+tmp_all <- left_join(tmp_all, tmp3)
+
+# Replace NA's with zeros
+tmp_all$passes[is.na(tmp_all$passes)] <- 0
+
+tmp <- tmp_all[,c("camera",  "counter","passes")]
+colnames(tmp) <- c("Camera", "Counter", "Day pass")
+
+M = cor(tmp, method="spearman")
+
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 1, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+
+##########################################################
+# Weekend effect 
+
+tmp_all$day <- weekdays(tmp_all$date)
+
+tmp_all$type <- "weekday"
+tmp_all$type[tmp_all$day %in% c("Saturday", "Sunday")] <- "Weekend"
+tmp_all$type <- as.factor(tmp_all$type)
+
+m_cam   <- lm(camera~type + mon_year, data=tmp_all)
+m_count <- lm(counter~type + mon_year, data=tmp_all)
+m_pass  <- lm(passes~type + mon_year, data=tmp_all)
+
+new_dat <- tmp_all[tmp_all$mon_year=="08-21",][6:7,]
+pred_int <- predict(m_cam, new_dat, interval = "confidence")
+new_dat$method<-"cam"
+tmp1 <- cbind(new_dat, pred_int)
+
+new_dat <- tmp_all[tmp_all$mon_year=="08-21",][1:2,]
+pred_int <- predict(m_count, new_dat, interval = "confidence")
+new_dat$method<-"counter"
+tmp2 <- cbind(new_dat, pred_int)
+
+new_dat <- tmp_all[tmp_all$mon_year=="08-21",][1:2,]
+pred_int <- predict(m_pass, new_dat, interval = "confidence")
+new_dat$method<-"pass"
+tmp3 <- cbind(new_dat, pred_int)
+
+we_res <- rbind(tmp1, tmp2, tmp3)
+we_res <- we_res[order(we_res$method, we_res$fit),]
+
+we_res$per_change <- NA
+we_res$per_change[we_res$type=="Weekend"] <- round((we_res$fit[we_res$type=="Weekend"]-we_res$fit[we_res$type=="weekday"])/we_res$fit[we_res$type=="weekday"]*100,1) 
+we_res$per_change_lci[we_res$type=="Weekend"] <- round((we_res$lwr[we_res$type=="Weekend"]-we_res$fit[we_res$type=="weekday"])/we_res$fit[we_res$type=="weekday"]*100,1) 
+we_res$per_change_uci[we_res$type=="Weekend"] <- round((we_res$upr[we_res$type=="Weekend"]-we_res$fit[we_res$type=="weekday"])/we_res$fit[we_res$type=="weekday"]*100,1) 
+
+# Cams
+    plotCI(x=c(0.75,1.25),y=we_res$fit[we_res$method=="cam"], li=we_res$lwr[we_res$method=="cam"], ui=we_res$upr[we_res$method=="cam"], sfrac=0.00001, pch=19,
+           col=c("black", "red"), xaxt="n", xlab="", xlim=c(0.5, 1.5), las=1,
+           ylab="Camera detections")
+    axis(1, at= c(0.75,1.25), labels=c("", ""))
+
+# Counters
+    plotCI(x=c(0.75,1.25),y=we_res$fit[we_res$method=="counter"], li=we_res$lwr[we_res$method=="counter"], ui=we_res$upr[we_res$method=="counter"], sfrac=0.00001, pch=19,
+           col=c("black", "red"), xaxt="n", xlab="", xlim=c(0.5, 1.5), las=1,
+           ylab="Counter triggers")
+    axis(1, at= c(0.75,1.25), labels=c("", ""))
+
+# Passes
+    plotCI(x=c(0.75,1.25),y=we_res$fit[we_res$method=="pass"], li=we_res$lwr[we_res$method=="pass"], ui=we_res$upr[we_res$method=="pass"], sfrac=0.00001, pch=19,
+           col=c("black", "red"), xaxt="n", xlab="", xlim=c(0.5, 1.5), las=1,
+           ylab="Passes issued")
+    axis(1, at= c(0.75,1.25), labels=c("Weekday", "Weekend"))
+
+    
+plotCI(x=c(1,2,3),y=we_res$per_change[we_res$type=="Weekend"], li=we_res$per_change_lci[we_res$type=="Weekend"], ui=we_res$per_change_uci[we_res$type=="Weekend"], sfrac=0.00001, pch=19,
+            xlab="", ylab="Percentage change", xlim=c(0.5, 3.5),
+    ylim=c(-5,24), las=1, xaxt="n")
+    lines(c(-2,5), c(0,0), lty=2)
+    axis(1, at=c(1,2,3),labels=c("", "", ""), las=2)
+    text(x = c(0.7, 1.7, 2.7),
+     y = par("usr")[3] - 6,
+     labels = c("Cameras", "Counters", "Passes"),
+     xpd = NA,
+     ## Rotate the labels by 35 degrees.
+     srt = 35,
+     cex = 1)
+    
+M = cor(all_hourly, method="spearman")
+par(mar=c(1,1,1,1))
+#corrplot(M, method = 'number', "lower")
+corrplot(M,  method = 'circle', type = 'lower', insig='blank',
+         addCoef.col ='black', number.cex = 1.2, order = 'original', diag=FALSE,
+         col=ramp(256), mar = c(0, 0, 1, 0), tl.col="black",
+         cl.cex = 1, tl.srt = 0,
+         cl.ratio=0.5) # Change font size of number-labels in color-legend
+
+# CAMS
+
+testlen<-all_hourly$Camera
+testpos<-seq(0, 2*pi,length=25)
+testlab<-c(seq(0, 23, by=1))
+
+ radial.plot(testlen,testpos,main="",line.col="black",
+                     labels=0:23, clockwise=T, #label.pos=testpos,
+  lwd=5, start=1.5*pi,
+  show.grid.labels = F,
+  cex.lab=0.6, radlab=T)
+
+#  COUNTERS
+ 
+testlen<-all_hourly$Counter
+testpos<-seq(0, 2*pi,length=25)
+testlab<-c(seq(0, 23, by=1))
+
+ radial.plot(testlen,testpos,main="",line.col="black",
+                     labels=0:23, clockwise=T, #label.pos=testpos,
+  lwd=5, start=1.5*pi,
+  show.grid.labels = F,
+  cex.lab=0.6, radlab=T)
+
+#  DAY PASS
+
+# Just need a dummy - we dont get hourley data from day passes  
+testlen<-all_hourly$Counter
+testpos<-seq(0, 2*pi,length=25)
+testlab<-c(seq(0, 23, by=1))
+
+ radial.plot(testlen,testpos,main="",line.col=rgb(0,0,0,0),
+                     labels=0:23, clockwise=T, #label.pos=testpos,
+  lwd=5, start=1.5*pi,
+  show.grid.labels = F,
+  cex.lab=0.6, radlab=T)
+
+dev.off()
+ 
+```
+
+
+
